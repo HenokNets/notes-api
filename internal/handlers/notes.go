@@ -4,21 +4,30 @@ import (
 	"encoding/json"
 	"net/http"
 	"notes-api/internal/model"
-	"sync"
+	"notes-api/internal/store"
 	"time"
 )
 
-var (
-	notes []model.Note
-	mu    sync.RWMutex
-)
+type NotesHandler struct {
+	store *store.Store
+}
+
+func NewNotesHandler(s *store.Store) *NotesHandler {
+	return &NotesHandler{
+		store: s,
+	}
+}
 
 type CreateNoteRequest struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
 
-func CreateNote(w http.ResponseWriter, r *http.Request) {
+func (h *NotesHandler) CreateNote(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
 	var req CreateNoteRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -26,90 +35,138 @@ func CreateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now()
+
 	note := model.Note{
-		ID:        time.Now().Format("20060102150405"),
+		ID:        now.Format("20060102150405"),
+		UserID:    "anonymous",
 		Title:     req.Title,
 		Body:      req.Body,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
-	mu.Lock()
-	notes = append(notes, note)
-	mu.Unlock()
+	if err := h.store.CreateNote(note); err != nil {
+		http.Error(
+			w,
+			"failed to create note",
+			http.StatusInternalServerError
+		)
+		return
+	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(
+		"Content-Type",
+		"application,json"
+	)
+
 	w.WriteHeader(http.StatusCreated)
+
 	json.NewEncoder(w).Encode(note)
 }
 
-func ListNotes(w http.ResponseWriter, r *http.Request) {
-	mu.RLock()
-	defer mu.RUnlock()
+func (h *NotesHandler) ListNotes(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	notes, err := h.store.ListNotes()
 
-	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		http.Error(
+			w, 
+			"database error",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
 
 	json.NewEncoder(w).Encode(notes)
 }
 
-func GetNote(w http.ResponseWriter, r *http.Request) {
+func (h *NotesHandler) GetNote(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	id := r.PathValue("id")
 
-	mu.RLock()
-	defer mu.RUnlock()
+	note, err := h.store.GetNote(id)
 
-	for _, note := range notes {
-		if note.ID == id {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(note)
-			return
-		}
+	if err != nil {
+		http.NotFound(w, r)
+		return
 	}
 
-	http.NotFound(w, r)
+	w.Header().Set(
+		"Content-Type",
+		"application/json"
+	)
+
+	json.NewEncoder(w).Encode(note)
 }
 
-func UpdateNote(w http.ResponseWriter, r *http.Request) {
+func (h *NotesHandler) UpdateNote(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	id := r.PathValue("id")
 
 	var req CreateNoteRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(
+			w,
+			"invalid json",
+			http.StatusBadRequest
+		)
 		return
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
+	err := h.store.UpdateNote(
+		id,
+		req.Title,
+		req.Body,
+	)
 
-	for i := range notes {
-		if notes[i].ID == id {
-			notes[i].Title = req.Title
-			notes[i].Body = req.Body
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(notes[i])
-
-			return
-		}
+	if err != nil {
+		http.Error(
+			w,
+			"database error",
+			http.StatusInternalServerError,
+		)
+		return
 	}
 
-	http.NotFound(w, r)
+	note, err := h.store.GetNote(id)
+
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	json.NewEncoder(w).Encode(note)
 }
 
-func DeleteNote(w http.ResponseWriter, r *http.Request) {
+func (h *NotesHandler) DeleteNote(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	id := r.PathValue("id")
 
-	mu.Lock()
-	defer mu.Unlock()
+	err := h.store.DeleteNote(id) 
 
-	for i := range notes {
-		if notes[i].ID == id {
-			notes = append(notes[:i], notes[i+1:]...)
-
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+	if err != nil {
+		http.Error(
+			w,
+			"database error",
+			http.StatusInternalServerError,
+		)
+		return
 	}
 
-	http.NotFound(w, r)
+	w.WriteHeader(http.StatusNoContent)
 }
