@@ -3,20 +3,41 @@ package server
 import (
 	"net/http"
 	"notes-api/internal/handlers"
+
+	_ "modernc.org/sqlite"
 )
 
-func NewServer() http.Handler {
+func NewMux(
+	notesHandler *handlers.NotesHandler,
+) *http.ServeMux {
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
-	mux.HandleFunc("GET /version", handlers.VersionHandler)
-	mux.HandleFunc("POST /notes", handlers.CreateNote)
 
-	mux.HandleFunc("GET /notes", handlers.ListNotes)
+	mux.HandleFunc(
+		"POST /notes",
+		notesHandler.CreateNote,
+	)
 
-	mux.HandleFunc("GET /notes/{id}", handlers.GetNote)
+	mux.HandleFunc(
+		"GET /notes",
+		notesHandler.ListNotes,
+	)
 
-	mux.HandleFunc("PUT /notes/{id}", handlers.UpdateNote)
+	mux.HandleFunc(
+		"GET /notes/{id}",
+		notesHandler.GetNote,
+	)
 
-	mux.HandleFunc("DELETE /notes/{id}", handlers.DeleteNote)
+	mux.HandleFunc(
+		"PUT /notes/{id}",
+		notesHandler.UpdateNote,
+	)
+
+	mux.HandleFunc(
+		"DELETE /notes/{id}",
+		notesHandler.DeleteNote,
+	)
+
 	return mux
+
 }
