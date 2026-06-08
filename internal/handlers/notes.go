@@ -50,14 +50,14 @@ func (h *NotesHandler) CreateNote(
 		http.Error(
 			w,
 			"failed to create note",
-			http.StatusInternalServerError
+			http.StatusInternalServerError,
 		)
 		return
 	}
 
 	w.Header().Set(
 		"Content-Type",
-		"application,json"
+		"application.json",
 	)
 
 	w.WriteHeader(http.StatusCreated)
@@ -73,7 +73,7 @@ func (h *NotesHandler) ListNotes(
 
 	if err != nil {
 		http.Error(
-			w, 
+			w,
 			"database error",
 			http.StatusInternalServerError,
 		)
@@ -103,7 +103,7 @@ func (h *NotesHandler) GetNote(
 
 	w.Header().Set(
 		"Content-Type",
-		"application/json"
+		"application/json",
 	)
 
 	json.NewEncoder(w).Encode(note)
@@ -121,7 +121,7 @@ func (h *NotesHandler) UpdateNote(
 		http.Error(
 			w,
 			"invalid json",
-			http.StatusBadRequest
+			http.StatusBadRequest,
 		)
 		return
 	}
@@ -157,7 +157,7 @@ func (h *NotesHandler) DeleteNote(
 ) {
 	id := r.PathValue("id")
 
-	err := h.store.DeleteNote(id) 
+	err := h.store.DeleteNote(id)
 
 	if err != nil {
 		http.Error(
